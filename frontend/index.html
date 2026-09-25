@@ -1,0 +1,1657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>P26 Distributed Data Synchronization System</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: monospace; background: #1a1a2e; color: #e0e0e0; padding: 24px; max-width: 980px; margin: auto; }
+  h1 { color: #0ff; margin-bottom: 16px; font-size: 1.4em; }
+  h2 { color: #0af; margin: 12px 0 8px; font-size: 1.1em; }
+  h3 { color: #38ada9; margin: 10px 0 6px; font-size: 1.0em; }
+
+  .section { background: #16213e; border: 1px solid #0a3d62; border-radius: 6px; padding: 14px; margin-bottom: 14px; }
+  .row { display: flex; gap: 10px; align-items: center; padding: 4px 0; flex-wrap: wrap; }
+  .label { color: #888; min-width: 90px; }
+
+  button { background: #0a3d62; color: #e0e0e0; border: 1px solid #0af; padding: 6px 14px; cursor: pointer; border-radius: 4px; margin: 3px; font-family: monospace; font-size: 0.9em; }
+  button:hover { background: #0af; color: #000; }
+  button.offline  { background: #c0392b; border-color: #e74c3c; }
+  button.action-btn { background: #2c3e50; border-color: #7f8c8d; font-size: 0.8em; padding: 3px 8px; }
+  button.action-btn:hover { background: #34495e; color: #0ff; }
+  button.cancel-btn { background: #7f8c8d; border-color: #95a5a6; }
+  button.danger   { background: #7f0000; border-color: #e74c3c; font-size: 0.8em; padding: 3px 8px; }
+  button.danger:hover { background: #c0392b; color: #fff; }
+  button.warning  { background: #d35400; border-color: #e67e22; font-size: 0.8em; padding: 3px 8px; }
+  button.warning:hover { background: #e67e22; color: #fff; }
+  button.logout-btn { background: #7f0000; border-color: #e74c3c; }
+
+  input, select { background: #0d1b2a; color: #0ff; border: 1px solid #0a3d62; padding: 6px 8px; font-family: monospace; border-radius: 4px; }
+  input { width: 180px; }
+  input[type=number] { width: 80px; }
+
+  .status-badge { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 0.8em; font-weight: bold; }
+  .status-ONLINE   { background: #27ae60; color: #fff; }
+  .status-OFFLINE  { background: #c0392b; color: #fff; }
+  .status-SYNCING  { background: #2980b9; color: #fff; }
+  .status-SYNCED   { background: #27ae60; color: #fff; }
+  .status-PENDING  { background: #f39c12; color: #000; }
+  .status-CONFLICT { background: #e74c3c; color: #fff; }
+  .status-CREATED  { background: #27ae60; color: #fff; }
+  .status-ACTIVE   { background: #27ae60; color: #fff; }
+  .status-DISABLED { background: #7f8c8d; color: #fff; }
+  .status-OPEN     { background: #e74c3c; color: #fff; }
+  .status-RESOLVED { background: #27ae60; color: #fff; }
+  .status-STUDENT_DELETED { background: #555e6e; color: #ccc; }
+  .role-ADMIN   { background: #8e44ad; color: #fff; padding: 2px 8px; border-radius: 3px; font-size: 0.8em; font-weight: bold; }
+  .role-TEACHER { background: #2471a3; color: #fff; padding: 2px 8px; border-radius: 3px; font-size: 0.8em; font-weight: bold; }
+  .temp-badge   { background: #8e44ad; color: #fff; display: inline-block; padding: 2px 6px; border-radius: 3px; font-size: 0.75em; margin-left: 4px; }
+
+  table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 0.85em; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #0a3d62; }
+  th { color: #0af; background: #0d1b2a; }
+  tr:hover { background: #1f2a44; }
+
+  #log { background: #0d1b2a; border: 1px solid #0a3d62; padding: 10px; max-height: 180px; overflow-y: auto; font-size: 0.8em; white-space: pre-wrap; border-radius: 4px; margin-top: 6px; }
+
+  .form-grid { display: grid; grid-template-columns: 110px 1fr; gap: 6px 10px; align-items: center; }
+  .form-grid .label { text-align: right; }
+  .conn-detail { font-size: 0.8em; color: #888; margin-left: 8px; }
+
+  /* ── Screens ── */
+  #loginScreen { max-width: 360px; margin: 80px auto; }
+  #loginScreen h2 { text-align: center; margin-bottom: 20px; color: #0ff; }
+  #loginScreen .form-grid { grid-template-columns: 90px 1fr; }
+  #loginError { color: #e74c3c; margin-top: 8px; font-size: 0.85em; min-height: 1.2em; text-align: center; }
+
+  #teacherRegisterScreen, #adminRegisterScreen { max-width: 400px; margin: 80px auto; display: none; }
+  #teacherRegisterScreen h2, #adminRegisterScreen h2 { text-align: center; margin-bottom: 20px; color: #0ff; }
+  #teacherRegisterScreen .form-grid { grid-template-columns: 130px 1fr; }
+  #adminRegisterScreen .form-grid { grid-template-columns: 150px 1fr; }
+  .form-error   { color: #e74c3c; margin-top: 8px; font-size: 0.85em; min-height: 1.2em; text-align: center; }
+  .form-success { color: #27ae60; margin-top: 8px; font-size: 0.85em; min-height: 1.2em; text-align: center; }
+  .link-btn { background: none; border: none; color: #0af; cursor: pointer; text-decoration: underline;
+              font-family: monospace; font-size: 0.9em; padding: 0; margin: 0; }
+  .link-btn:hover { color: #0ff; background: none; }
+
+  #appScreen { display: none; }
+
+  /* ── Header bar ── */
+  #headerBar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+               background: #0d1b2a; border: 1px solid #0a3d62; border-radius: 6px;
+               padding: 8px 14px; margin-bottom: 14px; }
+  #headerBar .spacer { flex: 1; }
+
+  /* ── Admin Dashboard Tabs ── */
+  .tab-nav { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+  .tab-nav button { padding: 8px 14px; font-size: 0.9em; }
+  .tab-nav button.active { background: #0ff; color: #000; font-weight: bold; border-color: #0ff; }
+
+  /* ── Status Grid ── */
+  .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-top: 10px; }
+  .status-card { background: #0d1b2a; border: 1px solid #0a3d62; border-radius: 6px; padding: 12px; text-align: center; }
+  .status-card .title { font-size: 0.85em; color: #888; margin-bottom: 6px; }
+  .status-card .value { font-size: 1.4em; font-weight: bold; color: #0ff; }
+
+  /* ── Details Box ── */
+  .details-box { background: #0d1b2a; border: 1px solid #00cec9; border-radius: 6px; padding: 12px; margin: 10px 0; }
+  .details-box .row { padding: 3px 0; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════
+     1. LOGIN SCREEN
+════════════════════════════════════════════ -->
+<div id="loginScreen">
+  <div class="section">
+    <h2>P26 Student Sync — Login</h2>
+    <div class="form-grid">
+      <span class="label">Username:</span>
+      <input type="text" id="lUser" placeholder="username" autocomplete="username">
+      <span class="label">Password:</span>
+      <input type="password" id="lPass" placeholder="password" autocomplete="current-password">
+    </div>
+    <div style="margin-top:12px; text-align:center;">
+      <button onclick="doLogin()">Login</button>
+    </div>
+    <div id="loginError"></div>
+    <div style="margin-top:16px; text-align:center; color:#888; font-size:0.85em; line-height: 1.8;">
+      Don't have an account?<br>
+      <button class="link-btn" onclick="showTeacherRegister()">[Create Teacher Account]</button>
+      <br>
+      <button class="link-btn" onclick="showAdminRegister()" style="color:#b388ff;">[Create Admin Account]</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     2. TEACHER REGISTRATION SCREEN
+════════════════════════════════════════════ -->
+<div id="teacherRegisterScreen">
+  <div class="section">
+    <h2>P26 — Create Teacher Account</h2>
+    <div class="form-grid">
+      <span class="label">Username:</span>
+      <input type="text"     id="trUser"    placeholder="Choose username" autocomplete="username">
+      <span class="label">Password:</span>
+      <input type="password" id="trPass"    placeholder="Min 8 chars"     autocomplete="new-password">
+      <span class="label">Confirm Pass:</span>
+      <input type="password" id="trConfirm" placeholder="Repeat password"  autocomplete="new-password">
+    </div>
+    <div style="margin-top:12px; text-align:center;">
+      <button onclick="doRegisterTeacher()">Create Teacher Account</button>
+    </div>
+    <div id="teacherRegisterError" class="form-error"></div>
+    <div id="teacherRegisterSuccess" class="form-success"></div>
+    <div style="margin-top:14px; text-align:center; color:#888; font-size:0.85em; line-height: 1.8;">
+      Already have an account? <button class="link-btn" onclick="showLogin()">Login</button><br>
+      Registering as administrator? <button class="link-btn" onclick="showAdminRegister()" style="color:#b388ff;">Create Admin Account</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     3. ADMIN REGISTRATION SCREEN (Requires Setup Key)
+════════════════════════════════════════════ -->
+<div id="adminRegisterScreen">
+  <div class="section">
+    <h2>P26 — Create Admin Account</h2>
+    <div class="form-grid">
+      <span class="label">Username:</span>
+      <input type="text"     id="arUser"    placeholder="Choose admin username" autocomplete="username">
+      <span class="label">Password:</span>
+      <input type="password" id="arPass"    placeholder="Min 8 chars"           autocomplete="new-password">
+      <span class="label">Confirm Pass:</span>
+      <input type="password" id="arConfirm" placeholder="Repeat password"        autocomplete="new-password">
+      <span class="label">Admin Key:</span>
+      <input type="password" id="arKey"     placeholder="ADMIN_SETUP_KEY"       autocomplete="off">
+    </div>
+    <div style="margin-top:12px; text-align:center;">
+      <button onclick="doRegisterAdmin()" style="background:#4a148c; border-color:#8e44ad;">Create Admin Account</button>
+    </div>
+    <div id="adminRegisterError" class="form-error"></div>
+    <div id="adminRegisterSuccess" class="form-success"></div>
+    <div style="margin-top:14px; text-align:center; color:#888; font-size:0.85em; line-height: 1.8;">
+      Already have an account? <button class="link-btn" onclick="showLogin()">Login</button><br>
+      Registering as teacher? <button class="link-btn" onclick="showTeacherRegister()">Create Teacher Account</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     4. APP SCREEN (Authenticated)
+════════════════════════════════════════════ -->
+<div id="appScreen">
+
+  <!-- ─── Header bar ─── -->
+  <div id="headerBar">
+    <span id="hTitle" style="color:#0ff; font-weight:bold;">P26 Student Sync</span>
+    <span class="spacer"></span>
+    <span style="color:#888; font-size:0.85em;">Logged in as:</span>
+    <strong id="hUser">—</strong>
+    <span id="hRole" class="role-TEACHER">—</span>
+    <button class="logout-btn" onclick="doLogout()">Logout</button>
+  </div>
+
+  <!-- ═════════════════════════════════════════════
+       ADMIN DASHBOARD CONTAINER
+  ══════════════════════════════════════════════ -->
+  <div id="adminContainer" style="display:none;">
+    <!-- Admin Tabs -->
+    <div class="tab-nav">
+      <button id="tabBtn-users"     class="active" onclick="switchAdminTab('users')">1. User Management</button>
+      <button id="tabBtn-students"  onclick="switchAdminTab('students')">2. Student Management</button>
+      <button id="tabBtn-sync"      onclick="switchAdminTab('sync')">3. Sync Monitor</button>
+      <button id="tabBtn-conflicts" onclick="switchAdminTab('conflicts')">4. Conflict Monitor</button>
+      <button id="tabBtn-status"    onclick="switchAdminTab('status')">5. System Status</button>
+    </div>
+
+    <!-- TAB 1: User Management -->
+    <div id="tab-users" class="admin-tab">
+      <div class="section">
+        <h2>User Management</h2>
+        
+        <!-- Create User Sub-section -->
+        <h3>Create User</h3>
+        <div class="form-grid" style="margin-bottom:10px;">
+          <span class="label">Username:</span>  <input type="text" id="aUser" placeholder="New username">
+          <span class="label">Password:</span>  <input type="password" id="aPass" placeholder="Min 6 chars">
+          <span class="label">Role:</span>
+          <select id="aRole">
+            <option value="TEACHER">TEACHER</option>
+            <option value="ADMIN">ADMIN</option>
+          </select>
+        </div>
+        <button onclick="createUser()">Create User</button>
+        <div id="adminMsg" style="margin-top:6px; font-size:0.85em; color:#0ff;"></div>
+
+        <!-- Search & List Users -->
+        <h3 style="margin-top:16px;">All Users</h3>
+        <div class="row" style="margin-bottom:8px;">
+          <input type="text" id="userSearchInput" placeholder="Search users..." oninput="searchUsers()" style="width:240px;">
+          <button onclick="loadUsers()">Refresh Users</button>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Username</th>
+              <th>Role</th>
+              <th>Status</th>
+              <th>Created At</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="userBody"><tr><td colspan="6" style="color:#555">Loading users…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB 2: Student Management (Admin view with numeric ID & Search) -->
+    <div id="tab-students" class="admin-tab" style="display:none;">
+      <!-- Add/Edit Student Form -->
+      <div class="section">
+        <h2 id="adminFormTitle">Add Student</h2>
+        <div class="form-grid">
+          <span class="label">Name:</span>       <input type="text"   id="afName" placeholder="Student name">
+          <span class="label">Roll No:</span>    <input type="text"   id="afRoll" placeholder="Roll number">
+          <span class="label">Course:</span>     <input type="text"   id="afCourse" placeholder="Course name">
+          <span class="label">Attendance:</span> <input type="number" id="afAtt" min="0" max="100" value="0">
+        </div>
+        <div style="margin-top:8px;">
+          <button id="adminFormBtn" onclick="handleAdminStudentSubmit()">Add Student</button>
+          <button id="adminCancelBtn" class="cancel-btn" onclick="cancelAdminEdit()" style="display:none;">Cancel</button>
+        </div>
+      </div>
+
+      <!-- Selected Student Full Details View -->
+      <div id="studentDetailsBox" class="section details-box" style="display:none;">
+        <div class="row" style="justify-content:space-between;">
+          <h3 style="color:#00cec9; margin:0;">Student Record Details</h3>
+          <button class="action-btn" onclick="closeStudentDetails()">Close</button>
+        </div>
+        <div class="row"><span class="label">ID:</span>          <strong id="det-id" style="color:#0ff;">—</strong></div>
+        <div class="row"><span class="label">Name:</span>        <span id="det-name">—</span></div>
+        <div class="row"><span class="label">Roll No:</span>     <span id="det-roll">—</span></div>
+        <div class="row"><span class="label">Course:</span>      <span id="det-course">—</span></div>
+        <div class="row"><span class="label">Attendance:</span>  <span id="det-att">—</span></div>
+        <div class="row"><span class="label">Version:</span>     <span id="det-ver">—</span></div>
+        <div class="row"><span class="label">Updated At:</span>  <span id="det-updated">—</span></div>
+      </div>
+
+      <!-- Student List & Search -->
+      <div class="section">
+        <h2>All Students (Live Database)</h2>
+        <div class="row" style="margin-bottom:10px;">
+          <input type="text" id="adminStudentSearch" placeholder="Search by Student ID, Name, or Roll No." oninput="searchAdminStudents()" style="width:340px;">
+          <button onclick="fetchAdminStudents()">Search / Refresh</button>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Name</th>
+              <th>Roll</th>
+              <th>Course</th>
+              <th>Att%</th>
+              <th>Version</th>
+              <th>Updated At</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="adminStudentBody"><tr><td colspan="8" style="color:#555">Loading students…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB 3: Synchronization Monitor -->
+    <div id="tab-sync" class="admin-tab" style="display:none;">
+      <div class="section">
+        <h2>Synchronization Monitor (sync_changes)</h2>
+        <button onclick="loadSyncMonitor()" style="margin-bottom:6px;">Refresh Activity</button>
+        <table>
+          <thead>
+            <tr>
+              <th>Change ID</th>
+              <th>Student ID</th>
+              <th>User</th>
+              <th>Device</th>
+              <th>Field</th>
+              <th>Status</th>
+              <th>Created At</th>
+            </tr>
+          </thead>
+          <tbody id="syncMonitorBody"><tr><td colspan="7" style="color:#555">Loading activity…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB 4: Conflict Monitor -->
+    <div id="tab-conflicts" class="admin-tab" style="display:none;">
+      <div class="section">
+        <h2>Conflict Management (conflicts table)</h2>
+        <button onclick="loadConflictsMonitor()" style="margin-bottom:6px;">Refresh Conflicts</button>
+        <table>
+          <thead>
+            <tr>
+              <th>Conflict ID</th>
+              <th>Student ID</th>
+              <th>Change ID</th>
+              <th>Server Ver</th>
+              <th>Incoming Ver</th>
+              <th>Status</th>
+              <th>Created At</th>
+            </tr>
+          </thead>
+          <tbody id="conflictMonitorBody"><tr><td colspan="7" style="color:#555">Loading conflicts…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB 5: System Status -->
+    <div id="tab-status" class="admin-tab" style="display:none;">
+      <div class="section">
+        <h2>System Status</h2>
+        <button onclick="loadSystemStatus()">Refresh Status</button>
+        <div class="status-grid">
+          <div class="status-card">
+            <div class="title">PostgreSQL</div>
+            <div class="value" id="stat-pg">CONNECTED</div>
+          </div>
+          <div class="status-card">
+            <div class="title">Backend API</div>
+            <div class="value" id="stat-backend">ONLINE</div>
+          </div>
+          <div class="status-card">
+            <div class="title">Active Users</div>
+            <div class="value" id="stat-users">—</div>
+          </div>
+          <div class="status-card">
+            <div class="title">Total Students</div>
+            <div class="value" id="stat-students">—</div>
+          </div>
+          <div class="status-card">
+            <div class="title">Sync Changes</div>
+            <div class="value" id="stat-syncs">—</div>
+          </div>
+          <div class="status-card">
+            <div class="title">Unresolved Conflicts</div>
+            <div class="value" id="stat-conflicts">—</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div><!-- #adminContainer -->
+
+  <!-- ═════════════════════════════════════════════
+       TEACHER DASHBOARD CONTAINER (Offline-First)
+  ══════════════════════════════════════════════ -->
+  <div id="teacherContainer">
+    <!-- ─── Connection Status ─── -->
+    <div class="section">
+      <div class="row">
+        <span class="label">Status:</span>
+        <span id="statusBadge" class="status-badge status-OFFLINE">CHECKING…</span>
+        <span id="connDetail" class="conn-detail"></span>
+      </div>
+      <div class="row">
+        <button id="toggleBtn" onclick="manualToggle()">Force OFFLINE</button>
+        <span style="font-size:0.75em; color:#666;">Manual override (also detects real network automatically)</span>
+      </div>
+    </div>
+
+    <!-- ─── Add / Edit Student ─── -->
+    <div class="section">
+      <h2 id="formTitle">Add Student</h2>
+      <div class="form-grid">
+        <span class="label">Name:</span>       <input type="text"   id="fName" placeholder="Student name">
+        <span class="label">Roll No:</span>    <input type="text"   id="fRoll" placeholder="Roll number">
+        <span class="label">Course:</span>     <input type="text"   id="fCourse" placeholder="Course name">
+        <span class="label">Attendance:</span> <input type="number" id="fAtt" min="0" max="100" value="0">
+      </div>
+      <div style="margin-top:8px;">
+        <button id="formBtn" onclick="handleFormSubmit()">Add Student</button>
+        <button id="cancelBtn" class="cancel-btn" onclick="cancelEdit()" style="display:none;">Cancel</button>
+      </div>
+    </div>
+
+    <!-- ─── Student List with Search ─── -->
+    <div class="section">
+      <h2>Students (Local / Offline Available)</h2>
+      <div class="row" style="margin-bottom:8px;">
+        <input type="text" id="teacherStudentSearch" placeholder="Search by Student ID, Name, or Roll No." oninput="searchTeacherStudents()" style="width:340px;">
+        <button onclick="fetchStudents()">Refresh Server</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Roll</th>
+            <th>Course</th>
+            <th>Att%</th>
+            <th>Ver</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="studentBody"><tr><td colspan="7" style="color:#555">Loading…</td></tr></tbody>
+      </table>
+    </div>
+
+    <!-- ─── Sync Queue ─── -->
+    <div class="section">
+      <h2>Sync Queue (IndexedDB)</h2>
+      <table>
+        <thead><tr><th>ChangeID</th><th>Op</th><th>Info</th><th>Status</th></tr></thead>
+        <tbody id="queueBody"><tr><td colspan="4" style="color:#555">Empty</td></tr></tbody>
+      </table>
+      <button onclick="syncPending()" style="margin-top:8px;">Sync Pending Changes</button>
+    </div>
+  </div><!-- #teacherContainer -->
+
+  <!-- ─── System Activity Log ─── -->
+  <div class="section">
+    <h2>Activity Log</h2>
+    <div id="log"></div>
+  </div>
+
+</div><!-- #appScreen -->
+
+<script>
+// ═══════════════════════════════════════════════
+// CONFIG & STATE
+// ═══════════════════════════════════════════════
+const API           = 'http://localhost:3000/api';
+const PING_INTERVAL = 10000;
+const DEVICE_ID     = 'WEB_' + (localStorage.getItem('p26_device') || (() => {
+  const id = Math.random().toString(36).slice(2, 10).toUpperCase();
+  localStorage.setItem('p26_device', id);
+  return id;
+})());
+
+let session       = null; // { token, user: { id, username, role, status } }
+let isOnline      = false;
+let manualOffline = false;
+let isSyncing     = false;
+let pingTimer     = null;
+let idb           = null;
+let editingId     = null;
+let adminEditingId= null;
+
+let cachedUsers         = [];
+let cachedAdminStudents = [];
+
+// ═══════════════════════════════════════════════
+// LOGGING
+// ═══════════════════════════════════════════════
+function log(msg) {
+  const el = document.getElementById('log');
+  if (!el) return;
+  const time = new Date().toLocaleTimeString();
+  el.textContent += `[${time}] ${msg}\n`;
+  el.scrollTop = el.scrollHeight;
+  console.log(`[${time}] ${msg}`);
+}
+
+// ═══════════════════════════════════════════════
+// AUTHENTICATION & REGISTRATION
+// ═══════════════════════════════════════════════
+async function doLogin() {
+  const username = document.getElementById('lUser').value.trim();
+  const password = document.getElementById('lPass').value;
+  const errEl    = document.getElementById('loginError');
+  errEl.textContent = '';
+
+  if (!username || !password) { errEl.textContent = 'Please enter username and password.'; return; }
+
+  try {
+    const res  = await fetch(`${API}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password, deviceId: DEVICE_ID }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) { 
+      errEl.textContent = data.error || 'Invalid username or password.'; 
+      return; 
+    }
+
+    session = { token: data.token, user: data.user };
+    localStorage.setItem('p26_token', data.token);
+    localStorage.setItem('p26_user', JSON.stringify(data.user));
+
+    document.getElementById('lPass').value = '';
+    showApp();
+  } catch (err) {
+    errEl.textContent = 'Server unavailable. Please try again.';
+  }
+}
+
+function doLogout() {
+  session = null;
+  localStorage.removeItem('p26_token');
+  localStorage.removeItem('p26_user');
+  if (pingTimer) clearInterval(pingTimer);
+  isOnline = false;
+  document.getElementById('appScreen').style.display             = 'none';
+  document.getElementById('teacherRegisterScreen').style.display = 'none';
+  document.getElementById('adminRegisterScreen').style.display   = 'none';
+  document.getElementById('loginScreen').style.display           = 'block';
+  log('Logged out');
+}
+
+function showLogin() {
+  document.getElementById('teacherRegisterScreen').style.display = 'none';
+  document.getElementById('adminRegisterScreen').style.display   = 'none';
+  document.getElementById('appScreen').style.display             = 'none';
+  document.getElementById('loginScreen').style.display           = 'block';
+  document.getElementById('loginError').textContent              = '';
+  document.getElementById('lUser').value = '';
+  document.getElementById('lPass').value = '';
+}
+
+function showTeacherRegister() {
+  document.getElementById('loginScreen').style.display           = 'none';
+  document.getElementById('adminRegisterScreen').style.display   = 'none';
+  document.getElementById('appScreen').style.display             = 'none';
+  document.getElementById('teacherRegisterScreen').style.display = 'block';
+  document.getElementById('teacherRegisterError').textContent    = '';
+  document.getElementById('teacherRegisterSuccess').textContent  = '';
+  document.getElementById('trUser').value    = '';
+  document.getElementById('trPass').value    = '';
+  document.getElementById('trConfirm').value = '';
+}
+
+function showAdminRegister() {
+  document.getElementById('loginScreen').style.display           = 'none';
+  document.getElementById('teacherRegisterScreen').style.display = 'none';
+  document.getElementById('appScreen').style.display             = 'none';
+  document.getElementById('adminRegisterScreen').style.display   = 'block';
+  document.getElementById('adminRegisterError').textContent      = '';
+  document.getElementById('adminRegisterSuccess').textContent    = '';
+  document.getElementById('arUser').value    = '';
+  document.getElementById('arPass').value    = '';
+  document.getElementById('arConfirm').value = '';
+  document.getElementById('arKey').value     = '';
+}
+
+async function doRegisterTeacher() {
+  const username = document.getElementById('trUser').value.trim();
+  const password = document.getElementById('trPass').value;
+  const confirm  = document.getElementById('trConfirm').value;
+  const errEl    = document.getElementById('teacherRegisterError');
+  const okEl     = document.getElementById('teacherRegisterSuccess');
+  errEl.textContent = '';
+  okEl.textContent  = '';
+
+  if (!username) { errEl.textContent = 'Username is required.'; return; }
+  if (!password) { errEl.textContent = 'Password is required.'; return; }
+  if (password.length < 8) { errEl.textContent = 'Password must be at least 8 characters.'; return; }
+  if (password !== confirm)  { errEl.textContent = 'Passwords do not match.'; return; }
+
+  try {
+    const res  = await fetch(`${API}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    const data = await res.json();
+
+    if (res.ok && data.status === 'REGISTERED') {
+      okEl.textContent = 'Teacher account created successfully! Redirecting to login…';
+      document.getElementById('trPass').value    = '';
+      document.getElementById('trConfirm').value = '';
+      setTimeout(() => {
+        showLogin();
+        document.getElementById('lUser').value = username;
+      }, 1500);
+    } else {
+      errEl.textContent = data.error || 'Registration failed. Please try again.';
+    }
+  } catch {
+    errEl.textContent = 'Server unavailable. Please try again.';
+  }
+}
+
+async function doRegisterAdmin() {
+  const username = document.getElementById('arUser').value.trim();
+  const password = document.getElementById('arPass').value;
+  const confirm  = document.getElementById('arConfirm').value;
+  const adminKey = document.getElementById('arKey').value;
+  const errEl    = document.getElementById('adminRegisterError');
+  const okEl     = document.getElementById('adminRegisterSuccess');
+  errEl.textContent = '';
+  okEl.textContent  = '';
+
+  if (!username) { errEl.textContent = 'Username is required.'; return; }
+  if (!password) { errEl.textContent = 'Password is required.'; return; }
+  if (password.length < 8) { errEl.textContent = 'Password must be at least 8 characters.'; return; }
+  if (password !== confirm)  { errEl.textContent = 'Passwords do not match.'; return; }
+  if (!adminKey) { errEl.textContent = 'Admin Registration Key is required.'; return; }
+
+  try {
+    const res  = await fetch(`${API}/auth/register-admin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password, adminKey }),
+    });
+    const data = await res.json();
+
+    if (res.ok && data.status === 'REGISTERED') {
+      okEl.textContent = 'Admin account created successfully! Redirecting to login…';
+      document.getElementById('arPass').value    = '';
+      document.getElementById('arConfirm').value = '';
+      document.getElementById('arKey').value     = '';
+      setTimeout(() => {
+        showLogin();
+        document.getElementById('lUser').value = username;
+      }, 1500);
+    } else {
+      errEl.textContent = data.error || 'Admin registration failed.';
+    }
+  } catch {
+    errEl.textContent = 'Server unavailable. Please try again.';
+  }
+}
+
+function restoreSession() {
+  const token = localStorage.getItem('p26_token');
+  const user  = localStorage.getItem('p26_user');
+  if (token && user) {
+    try {
+      session = { token, user: JSON.parse(user) };
+      return true;
+    } catch { return false; }
+  }
+  return false;
+}
+
+// ═══════════════════════════════════════════════
+// MAIN DASHBOARD ROUTING
+// ═══════════════════════════════════════════════
+async function showApp() {
+  document.getElementById('loginScreen').style.display           = 'none';
+  document.getElementById('teacherRegisterScreen').style.display = 'none';
+  document.getElementById('adminRegisterScreen').style.display   = 'none';
+  document.getElementById('appScreen').style.display             = 'block';
+
+  const role = session.user.role;
+  document.getElementById('hTitle').textContent = role === 'ADMIN' ? 'P26 Student Sync — Admin' : 'P26 Student Sync — Teacher';
+  document.getElementById('hUser').textContent  = session.user.username;
+  const roleEl = document.getElementById('hRole');
+  roleEl.textContent = role;
+  roleEl.className   = 'role-' + role;
+
+  if (role === 'ADMIN') {
+    document.getElementById('adminContainer').style.display   = 'block';
+    document.getElementById('teacherContainer').style.display = 'none';
+    switchAdminTab('users');
+  } else {
+    document.getElementById('adminContainer').style.display   = 'none';
+    document.getElementById('teacherContainer').style.display = 'block';
+  }
+
+  await openDB();
+  log(`Welcome, ${session.user.username} (${role})`);
+
+  if (role !== 'ADMIN') {
+    await renderStudents();
+    await renderQueue();
+  }
+
+  isOnline = await pingServer();
+  updateStatusUI();
+
+  if (isOnline) {
+    log('Network ONLINE — server reachable');
+    if (role === 'ADMIN') {
+      await loadUsers();
+      await fetchAdminStudents();
+      await loadSystemStatus();
+    } else {
+      await fetchStudents();
+      await autoSync();
+    }
+  } else {
+    log('Network OFFLINE — local storage active');
+  }
+  startPingLoop();
+}
+
+function authHeaders() {
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${session ? session.token : ''}`,
+  };
+}
+
+async function safeFetch(url, options = {}) {
+  options.headers = { ...authHeaders(), ...(options.headers || {}) };
+  try {
+    const res = await fetch(url, options);
+
+    if (res.status === 401 || (res.status === 403 && (await res.clone().json().catch(()=>({}))).error?.includes('disabled'))) {
+      const errData = await res.json().catch(()=>({}));
+      log(errData.error || 'Session invalid or expired.');
+      doLogout();
+      return { ok: false, error: errData.error || 'Session expired' };
+    }
+
+    if (!res.ok) {
+      let errMsg = `HTTP ${res.status}`;
+      try { const j = await res.json(); errMsg = j.error || errMsg; } catch {}
+      return { ok: false, error: errMsg };
+    }
+    const data = await res.json();
+    return { ok: true, data };
+  } catch (err) {
+    isOnline = false;
+    updateStatusUI();
+    return { ok: false, error: err.message };
+  }
+}
+
+// ═══════════════════════════════════════════════
+// ADMIN DASHBOARD TAB CONTROLLER
+// ═══════════════════════════════════════════════
+function switchAdminTab(tabName) {
+  const tabs = ['users', 'students', 'sync', 'conflicts', 'status'];
+  tabs.forEach(t => {
+    const el = document.getElementById(`tab-${t}`);
+    const btn = document.getElementById(`tabBtn-${t}`);
+    if (el) el.style.display = (t === tabName) ? 'block' : 'none';
+    if (btn) {
+      if (t === tabName) btn.classList.add('active');
+      else btn.classList.remove('active');
+    }
+  });
+
+  if (tabName === 'users') loadUsers();
+  else if (tabName === 'students') fetchAdminStudents();
+  else if (tabName === 'sync') loadSyncMonitor();
+  else if (tabName === 'conflicts') loadConflictsMonitor();
+  else if (tabName === 'status') loadSystemStatus();
+}
+
+// ═══════════════════════════════════════════════
+// ADMIN: USER MANAGEMENT
+// ═══════════════════════════════════════════════
+async function loadUsers() {
+  const result = await safeFetch(`${API}/admin/users`);
+  const tbody  = document.getElementById('userBody');
+  if (!tbody) return;
+
+  if (!result.ok) { 
+    tbody.innerHTML = `<tr><td colspan="6" style="color:#e74c3c">${result.error}</td></tr>`; 
+    return; 
+  }
+
+  cachedUsers = result.data || [];
+  renderUserTable(cachedUsers);
+}
+
+function renderUserTable(users) {
+  const tbody = document.getElementById('userBody');
+  if (!tbody) return;
+
+  if (users.length === 0) { 
+    tbody.innerHTML = '<tr><td colspan="6" style="color:#555">No matching users found</td></tr>'; 
+    return; 
+  }
+
+  tbody.innerHTML = '';
+  users.forEach(u => {
+    const isSelf = session && u.id === session.user.id;
+    const isActive = u.status === 'ACTIVE';
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${u.id}</td>
+      <td><strong>${u.username}</strong>${isSelf ? ' <span style="color:#f39c12">(you)</span>' : ''}</td>
+      <td><span class="role-${u.role}">${u.role}</span></td>
+      <td><span class="status-badge status-${u.status}">${u.status}</span></td>
+      <td>${new Date(u.created_at).toLocaleString()}</td>
+      <td>
+        ${isActive ? 
+          `<button class="warning" onclick="toggleUserStatus(${u.id}, 'disable')">Disable</button>` :
+          `<button class="action-btn" onclick="toggleUserStatus(${u.id}, 'enable')">Enable</button>`
+        }
+        <button class="action-btn" onclick="promptChangeRole(${u.id}, '${u.role}')">Change Role</button>
+        <button class="action-btn" onclick="promptResetPassword(${u.id})">Reset Pass</button>
+        ${!isSelf ? `<button class="danger" onclick="deleteUser(${u.id})">Delete</button>` : '—'}
+      </td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function searchUsers() {
+  const query = (document.getElementById('userSearchInput')?.value || '').toLowerCase();
+  const filtered = cachedUsers.filter(u => u.username.toLowerCase().includes(query));
+  renderUserTable(filtered);
+}
+
+async function createUser() {
+  const username = document.getElementById('aUser').value.trim();
+  const password = document.getElementById('aPass').value;
+  const role     = document.getElementById('aRole').value;
+  const msgEl    = document.getElementById('adminMsg');
+  msgEl.textContent = '';
+
+  if (!username || !password) { msgEl.textContent = 'Username and password required.'; return; }
+
+  const result = await safeFetch(`${API}/admin/users`, {
+    method: 'POST',
+    body: JSON.stringify({ username, password, role }),
+  });
+
+  if (result.ok) {
+    msgEl.textContent = `User "${result.data.user.username}" created as ${result.data.user.role}.`;
+    document.getElementById('aUser').value = '';
+    document.getElementById('aPass').value = '';
+    await loadUsers();
+  } else {
+    msgEl.textContent = 'Error: ' + result.error;
+  }
+}
+
+async function toggleUserStatus(userId, action) {
+  const result = await safeFetch(`${API}/admin/users/${userId}/${action}`, { method: 'POST' });
+  if (result.ok) {
+    log(`User ID ${userId} is now ${action.toUpperCase()}D`);
+    await loadUsers();
+  } else {
+    alert(result.error);
+  }
+}
+
+async function promptChangeRole(userId, currentRole) {
+  const newRole = currentRole === 'ADMIN' ? 'TEACHER' : 'ADMIN';
+  if (!confirm(`Are you sure you want to change user role from ${currentRole} to ${newRole}?`)) return;
+
+  const result = await safeFetch(`${API}/admin/users/${userId}/role`, {
+    method: 'PUT',
+    body: JSON.stringify({ role: newRole })
+  });
+
+  if (result.ok) {
+    log(`Changed user ${userId} role to ${newRole}`);
+    await loadUsers();
+  } else {
+    alert(result.error);
+  }
+}
+
+async function promptResetPassword(userId) {
+  const newPassword = prompt("Enter new password for this user (min 6 characters):");
+  if (!newPassword) return;
+  if (newPassword.length < 6) {
+    alert("Password must be at least 6 characters.");
+    return;
+  }
+
+  const result = await safeFetch(`${API}/admin/users/${userId}/reset-password`, {
+    method: 'POST',
+    body: JSON.stringify({ newPassword })
+  });
+
+  if (result.ok) {
+    alert("Password successfully reset!");
+    log(`Admin reset password for user ID ${userId}`);
+  } else {
+    alert(result.error);
+  }
+}
+
+async function deleteUser(id) {
+  if (!confirm('Are you sure you want to delete this user?')) return;
+  const result = await safeFetch(`${API}/admin/users/${id}`, { method: 'DELETE' });
+  if (result.ok) { 
+    log(`Deleted user ID ${id}`);
+    await loadUsers(); 
+  } else { 
+    alert(result.error);
+  }
+}
+
+// ═══════════════════════════════════════════════
+// ADMIN: STUDENT MANAGEMENT & SEARCH (Numeric ID)
+// ═══════════════════════════════════════════════
+async function fetchAdminStudents(searchTerm = '') {
+  const url = searchTerm ? `${API}/students/search?q=${encodeURIComponent(searchTerm)}` : `${API}/students`;
+  const result = await safeFetch(url);
+  const tbody  = document.getElementById('adminStudentBody');
+  if (!tbody) return;
+
+  if (!result.ok) {
+    tbody.innerHTML = `<tr><td colspan="8" style="color:#e74c3c">${result.error}</td></tr>`;
+    return;
+  }
+
+  cachedAdminStudents = result.data || [];
+  renderAdminStudentTable(cachedAdminStudents);
+}
+
+function renderAdminStudentTable(students) {
+  const tbody = document.getElementById('adminStudentBody');
+  if (!tbody) return;
+
+  if (students.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" style="color:#555">No students found</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = '';
+  students.forEach(s => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><strong style="color:#0ff; cursor:pointer;" onclick="showStudentDetails(${s.id})">${s.id}</strong></td>
+      <td><strong style="cursor:pointer;" onclick="showStudentDetails(${s.id})">${s.name}</strong></td>
+      <td>${s.roll_no}</td>
+      <td>${s.course}</td>
+      <td>${s.attendance}%</td>
+      <td>${s.version}</td>
+      <td>${s.updated_at ? new Date(s.updated_at).toLocaleString() : '—'}</td>
+      <td>
+        <button class="action-btn" onclick="showStudentDetails(${s.id})">Details</button>
+        <button class="action-btn" onclick="startAdminEdit(${s.id})">Edit</button>
+        <button class="danger" onclick="deleteAdminStudent(${s.id})">Delete</button>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function searchAdminStudents() {
+  const query = (document.getElementById('adminStudentSearch')?.value || '').trim();
+  fetchAdminStudents(query);
+}
+
+function showStudentDetails(studentId) {
+  const s = cachedAdminStudents.find(item => item.id === studentId);
+  if (!s) return;
+  document.getElementById('det-id').textContent      = s.id;
+  document.getElementById('det-name').textContent    = s.name;
+  document.getElementById('det-roll').textContent    = s.roll_no;
+  document.getElementById('det-course').textContent  = s.course;
+  document.getElementById('det-att').textContent     = `${s.attendance}%`;
+  document.getElementById('det-ver').textContent     = s.version;
+  document.getElementById('det-updated').textContent = s.updated_at ? new Date(s.updated_at).toLocaleString() : '—';
+  
+  const box = document.getElementById('studentDetailsBox');
+  box.style.display = 'block';
+  box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function closeStudentDetails() {
+  document.getElementById('studentDetailsBox').style.display = 'none';
+}
+
+function startAdminEdit(id) {
+  adminEditingId = parseInt(id, 10);
+  const student = cachedAdminStudents.find(s => s.id === adminEditingId);
+  if (!student) return;
+
+  document.getElementById('afName').value   = student.name;
+  document.getElementById('afRoll').value   = student.roll_no;
+  document.getElementById('afCourse').value = student.course;
+  document.getElementById('afAtt').value    = student.attendance;
+  document.getElementById('adminFormTitle').textContent = `Edit Student (ID: ${student.id})`;
+  document.getElementById('adminFormBtn').textContent   = 'Save Changes';
+  document.getElementById('adminCancelBtn').style.display = 'inline-block';
+  document.getElementById('afName').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function cancelAdminEdit() {
+  adminEditingId = null;
+  document.getElementById('afName').value   = '';
+  document.getElementById('afRoll').value   = '';
+  document.getElementById('afCourse').value = '';
+  document.getElementById('afAtt').value    = '0';
+  document.getElementById('adminFormTitle').textContent   = 'Add Student';
+  document.getElementById('adminFormBtn').textContent     = 'Add Student';
+  document.getElementById('adminCancelBtn').style.display = 'none';
+}
+
+async function handleAdminStudentSubmit() {
+  const name       = document.getElementById('afName').value.trim();
+  const roll_no    = document.getElementById('afRoll').value.trim();
+  const course     = document.getElementById('afCourse').value.trim();
+  const attendance = parseInt(document.getElementById('afAtt').value, 10) || 0;
+
+  if (!name) { alert('Name is required'); return; }
+
+  if (adminEditingId !== null) {
+    const student = cachedAdminStudents.find(s => s.id === adminEditingId);
+    if (!student) { alert('Student not found'); return; }
+
+    const updateRes = await safeFetch(`${API}/students/${adminEditingId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ name, roll_no, course, attendance, baseVersion: student.version })
+    });
+
+    if (updateRes.ok) {
+      log(`Admin updated student ID ${updateRes.data.student.id} (${name})`);
+      cancelAdminEdit();
+      await fetchAdminStudents();
+    } else {
+      alert(updateRes.error);
+    }
+  } else {
+    const createRes = await safeFetch(`${API}/students`, {
+      method: 'POST',
+      body: JSON.stringify({ name, roll_no, course, attendance })
+    });
+
+    if (createRes.ok) {
+      log(`Admin created student ID ${createRes.data.student.id} (${createRes.data.student.name})`);
+      cancelAdminEdit();
+      await fetchAdminStudents();
+    } else {
+      alert(createRes.error);
+    }
+  }
+}
+
+async function deleteAdminStudent(id) {
+  if (!confirm(`Are you sure you want to delete student ID ${id}?`)) return;
+  const result = await safeFetch(`${API}/students/${id}`, { method: 'DELETE' });
+  if (result.ok) {
+    log(`Admin deleted student ID ${id}`);
+    closeStudentDetails();
+    await fetchAdminStudents();
+  } else {
+    alert(result.error);
+  }
+}
+
+// ═══════════════════════════════════════════════
+// ADMIN: SYNCHRONIZATION MONITOR
+// ═══════════════════════════════════════════════
+async function loadSyncMonitor() {
+  const result = await safeFetch(`${API}/admin/sync-changes`);
+  const tbody  = document.getElementById('syncMonitorBody');
+  if (!tbody) return;
+
+  if (!result.ok) {
+    tbody.innerHTML = `<tr><td colspan="7" style="color:#e74c3c">${result.error}</td></tr>`;
+    return;
+  }
+
+  const items = result.data || [];
+  if (items.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="color:#555">No synchronization activity logged yet</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = '';
+  items.forEach(c => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>C${c.change_id}</td>
+      <td><strong>#${c.student_id}</strong></td>
+      <td><strong>${c.username || 'User #' + c.user_id}</strong></td>
+      <td>${c.device_id || '—'}</td>
+      <td>${c.field || 'RECORD'}</td>
+      <td><span class="status-badge status-${c.status}">${c.status}</span></td>
+      <td>${new Date(c.created_at).toLocaleString()}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// ═══════════════════════════════════════════════
+// ADMIN: CONFLICT MONITOR
+// ═══════════════════════════════════════════════
+function conflictStatusLabel(status) {
+  if (status === 'STUDENT_DELETED') return 'STUDENT DELETED';
+  return status; // OPEN, RESOLVED, etc. shown as-is
+}
+
+async function loadConflictsMonitor() {
+  const result = await safeFetch(`${API}/admin/conflicts`);
+  const tbody  = document.getElementById('conflictMonitorBody');
+  if (!tbody) return;
+
+  if (!result.ok) {
+    tbody.innerHTML = `<tr><td colspan="7" style="color:#e74c3c">${result.error}</td></tr>`;
+    return;
+  }
+
+  const items = result.data || [];
+  if (items.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="color:#555">No conflicts recorded</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = '';
+  items.forEach(c => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>#${c.conflict_id}</td>
+      <td><strong>#${c.student_id}</strong></td>
+      <td>${c.change_id || '—'}</td>
+      <td>v${c.server_version}</td>
+      <td>v${c.incoming_version}</td>
+      <td><span class="status-badge status-${c.status}">${conflictStatusLabel(c.status)}</span></td>
+      <td>${new Date(c.created_at).toLocaleString()}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// ═══════════════════════════════════════════════
+// ADMIN: SYSTEM STATUS
+// ═══════════════════════════════════════════════
+async function loadSystemStatus() {
+  const result = await safeFetch(`${API}/admin/status`);
+  if (!result.ok) return;
+
+  const data = result.data;
+  document.getElementById('stat-pg').textContent        = data.postgres;
+  document.getElementById('stat-backend').textContent   = data.backend;
+  document.getElementById('stat-users').textContent     = `${data.users.active} / ${data.users.total}`;
+  document.getElementById('stat-students').textContent  = data.students;
+  document.getElementById('stat-syncs').textContent     = data.syncChangesTotal;
+  document.getElementById('stat-conflicts').textContent = `${data.conflicts.unresolved} OPEN (${data.conflicts.total} total)`;
+}
+
+// ═══════════════════════════════════════════════
+// TEACHER: OFFLINE-FIRST SYNCHRONIZATION
+// ═══════════════════════════════════════════════
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open('P26_LocalDB', 3);
+
+    request.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (db.objectStoreNames.contains('records')) db.deleteObjectStore('records');
+      if (!db.objectStoreNames.contains('students')) db.createObjectStore('students', { keyPath: 'id' });
+      if (!db.objectStoreNames.contains('syncQueue')) db.createObjectStore('syncQueue', { keyPath: 'changeId' });
+    };
+
+    request.onsuccess = (e) => { idb = e.target.result; resolve(idb); };
+    request.onerror   = (e) => reject(e.target.error);
+  });
+}
+
+function idbPut(store, data) {
+  return new Promise((resolve, reject) => {
+    const tx = idb.transaction(store, 'readwrite');
+    tx.objectStore(store).put(data);
+    tx.oncomplete = () => resolve();
+    tx.onerror    = (e) => reject(e.target.error);
+  });
+}
+function idbGet(store, key) {
+  return new Promise((resolve, reject) => {
+    const tx  = idb.transaction(store, 'readonly');
+    const req = tx.objectStore(store).get(key);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror   = (e) => reject(e.target.error);
+  });
+}
+function idbGetAll(store) {
+  return new Promise((resolve, reject) => {
+    const tx  = idb.transaction(store, 'readonly');
+    const req = tx.objectStore(store).getAll();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror   = (e) => reject(e.target.error);
+  });
+}
+function idbDelete(store, key) {
+  return new Promise((resolve, reject) => {
+    const tx = idb.transaction(store, 'readwrite');
+    tx.objectStore(store).delete(key);
+    tx.oncomplete = () => resolve();
+    tx.onerror    = (e) => reject(e.target.error);
+  });
+}
+
+function updateStatusUI() {
+  const badge  = document.getElementById('statusBadge');
+  const detail = document.getElementById('connDetail');
+  const btn    = document.getElementById('toggleBtn');
+  if (!badge) return;
+
+  if (isSyncing) {
+    badge.textContent  = 'SYNCING';
+    badge.className    = 'status-badge status-SYNCING';
+    detail.textContent = 'Sending pending changes…';
+    return;
+  }
+  if (manualOffline) {
+    badge.textContent  = 'OFFLINE';
+    badge.className    = 'status-badge status-OFFLINE';
+    detail.textContent = '(forced by user)';
+    btn.textContent    = 'Go ONLINE';
+    btn.classList.add('offline');
+  } else if (isOnline) {
+    badge.textContent  = 'ONLINE';
+    badge.className    = 'status-badge status-ONLINE';
+    detail.textContent = 'Server reachable';
+    btn.textContent    = 'Force OFFLINE';
+    btn.classList.remove('offline');
+  } else {
+    badge.textContent  = 'OFFLINE';
+    badge.className    = 'status-badge status-OFFLINE';
+    detail.textContent = navigator.onLine ? 'Network up, server unreachable' : 'No network';
+    btn.textContent    = 'Force OFFLINE';
+    btn.classList.remove('offline');
+  }
+}
+
+async function pingServer() {
+  if (!navigator.onLine) return false;
+  if (!session) return false;
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 4000);
+    const res = await fetch(`${API}/students`, {
+      signal: controller.signal,
+      headers: { 'Authorization': `Bearer ${session.token}` },
+    });
+    clearTimeout(timeout);
+    return res.ok || res.status === 401;
+  } catch {
+    return false;
+  }
+}
+
+async function checkConnectivity() {
+  if (manualOffline || !session) { isOnline = false; updateStatusUI(); return; }
+  const wasOnline = isOnline;
+  isOnline = await pingServer();
+  updateStatusUI();
+  if (!wasOnline && isOnline) {
+    log('Network ONLINE — server reachable');
+    if (session.user.role === 'ADMIN') {
+      await loadUsers();
+      await fetchAdminStudents();
+      await loadSystemStatus();
+    } else {
+      await fetchStudents();
+      await autoSync();
+    }
+  } else if (wasOnline && !isOnline) {
+    log('Network OFFLINE');
+  }
+}
+
+window.addEventListener('online',  () => { log('Browser: online event');  checkConnectivity(); });
+window.addEventListener('offline', () => { log('Browser: offline event'); isOnline = false; updateStatusUI(); log('Network OFFLINE'); });
+
+function startPingLoop() {
+  if (pingTimer) clearInterval(pingTimer);
+  pingTimer = setInterval(checkConnectivity, PING_INTERVAL);
+}
+
+async function manualToggle() {
+  manualOffline = !manualOffline;
+  if (manualOffline) {
+    isOnline = false;
+    log('User forced OFFLINE');
+  } else {
+    log('User released override — checking connectivity…');
+    await checkConnectivity();
+  }
+  updateStatusUI();
+}
+
+function effectivelyOnline() {
+  return isOnline && !manualOffline && !!session;
+}
+
+async function renderStudents(filterQuery = '') {
+  const students = await idbGetAll('students');
+  const tbody = document.getElementById('studentBody');
+  if (!tbody) return;
+
+  const q = filterQuery.toLowerCase().trim();
+  const filtered = q ? students.filter(s => 
+    String(s.id).toLowerCase().includes(q) ||
+    (s.name && s.name.toLowerCase().includes(q)) ||
+    (s.roll_no && s.roll_no.toLowerCase().includes(q))
+  ) : students;
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="color:#555">No matching students found</td></tr>';
+    return;
+  }
+  tbody.innerHTML = '';
+  filtered.forEach(s => {
+    const isTemp = String(s.id).startsWith('temp_');
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${isTemp ? '— <span class="temp-badge">PENDING</span>' : `<strong>${s.id}</strong>`}</td>
+      <td><strong>${s.name}</strong></td>
+      <td>${s.roll_no}</td>
+      <td>${s.course}</td>
+      <td>${s.attendance}%</td>
+      <td>${s.version}</td>
+      <td>${isTemp ? '' : '<button class="action-btn" onclick="startEdit(\'' + s.id + '\')">Edit</button>'}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function searchTeacherStudents() {
+  const query = document.getElementById('teacherStudentSearch')?.value || '';
+  renderStudents(query);
+}
+
+async function renderQueue() {
+  const items = await idbGetAll('syncQueue');
+  const tbody = document.getElementById('queueBody');
+  if (!tbody) return;
+
+  if (items.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" style="color:#555">No pending changes in local queue</td></tr>';
+    return;
+  }
+  tbody.innerHTML = '';
+  items.forEach(item => {
+    const info = item.operation === 'CREATE'
+      ? item.data.name + ' (new)'
+      : 'ID:' + item.studentId + ' → ' + JSON.stringify(item.data).substring(0, 35);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${item.changeId.substring(0, 12)}</td>
+      <td>${item.operation}</td>
+      <td>${info}</td>
+      <td><span class="status-badge status-${item.status}">${item.status}</span></td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+async function fetchStudents() {
+  if (!effectivelyOnline()) {
+    log('Cannot fetch — OFFLINE. Showing local data.');
+    await renderStudents();
+    return;
+  }
+
+  const result = await safeFetch(`${API}/students`);
+  if (!result.ok) {
+    log('Server unreachable: ' + result.error + '. Showing local data.');
+    await renderStudents();
+    return;
+  }
+  const students = result.data;
+  if (!Array.isArray(students)) {
+    log('Unexpected server response. Showing local data.');
+    await renderStudents();
+    return;
+  }
+  for (const s of students) {
+    await idbPut('students', { 
+      id: s.id, 
+      name: s.name, 
+      roll_no: s.roll_no, 
+      course: s.course, 
+      attendance: s.attendance, 
+      version: s.version 
+    });
+  }
+  await renderStudents();
+  log(`Fetched ${students.length} students from server`);
+}
+
+function readForm() {
+  return {
+    name:       document.getElementById('fName').value.trim(),
+    roll_no:    document.getElementById('fRoll').value.trim(),
+    course:     document.getElementById('fCourse').value.trim(),
+    attendance: parseInt(document.getElementById('fAtt').value, 10) || 0,
+  };
+}
+function clearForm() {
+  document.getElementById('fName').value   = '';
+  document.getElementById('fRoll').value   = '';
+  document.getElementById('fCourse').value = '';
+  document.getElementById('fAtt').value    = '0';
+  editingId = null;
+  document.getElementById('formTitle').textContent   = 'Add Student';
+  document.getElementById('formBtn').textContent     = 'Add Student';
+  document.getElementById('cancelBtn').style.display = 'none';
+}
+async function startEdit(id) {
+  const student = await idbGet('students', isNaN(id) ? id : parseInt(id, 10));
+  if (!student) { log('Student not found locally'); return; }
+  editingId = student.id;
+  document.getElementById('fName').value    = student.name;
+  document.getElementById('fRoll').value    = student.roll_no;
+  document.getElementById('fCourse').value  = student.course;
+  document.getElementById('fAtt').value     = student.attendance;
+  document.getElementById('formTitle').textContent   = `Edit Student (ID: ${student.id})`;
+  document.getElementById('formBtn').textContent     = 'Save Changes';
+  document.getElementById('cancelBtn').style.display = 'inline-block';
+  log(`Editing student ID ${student.id}`);
+}
+function cancelEdit() { clearForm(); log('Edit cancelled'); }
+async function handleFormSubmit() {
+  if (editingId !== null) { await handleUpdate(); } else { await handleCreate(); }
+}
+
+async function handleCreate() {
+  const data = readForm();
+  if (!data.name) { log('Name is required'); return; }
+
+  if (effectivelyOnline()) {
+    const result = await safeFetch(`${API}/students`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    if (result.ok && result.data.status === 'CREATED') {
+      const s = result.data.student;
+      await idbPut('students', { 
+        id: s.id, 
+        name: s.name, 
+        roll_no: s.roll_no, 
+        course: s.course, 
+        attendance: s.attendance, 
+        version: s.version 
+      });
+      log(`CREATED: ID ${s.id} (${s.name}) — server version ${s.version}`);
+    } else if (!result.ok) {
+      log('Server unreachable during create. Saving offline.');
+      await createOffline(data);
+    } else {
+      log('Create failed: ' + JSON.stringify(result.data));
+    }
+  } else {
+    await createOffline(data);
+  }
+  clearForm();
+  await renderStudents();
+  await renderQueue();
+}
+
+async function createOffline(data) {
+  const userId   = session ? session.user.id : 0;
+  const tempId   = 'temp_' + Date.now();
+  const changeId = 'C' + Date.now();
+
+  await idbPut('students', { 
+    id: tempId, 
+    name: data.name, 
+    roll_no: data.roll_no, 
+    course: data.course, 
+    attendance: data.attendance, 
+    version: 0 
+  });
+  await idbPut('syncQueue', { 
+    changeId, 
+    operation: 'CREATE', 
+    tempId, 
+    studentId: null, 
+    data, 
+    userId, 
+    deviceId: DEVICE_ID, 
+    status: 'PENDING', 
+    createdAt: new Date().toISOString() 
+  });
+
+  log(`Created student locally (pending sync)`);
+  log(`Queued CREATE for ${data.name}`);
+}
+
+async function handleUpdate() {
+  const data = readForm();
+  if (!data.name) { log('Name is required'); return; }
+
+  const student = await idbGet('students', editingId);
+  if (!student) { log('Local student not found'); return; }
+  const baseVersion = student.version;
+
+  if (effectivelyOnline()) {
+    const result = await safeFetch(`${API}/students/${editingId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ ...data, baseVersion }),
+    });
+    if (result.ok && result.data.status === 'SYNCED') {
+      const s = result.data.student;
+      await idbPut('students', { 
+        id: s.id, 
+        name: s.name, 
+        roll_no: s.roll_no, 
+        course: s.course, 
+        attendance: s.attendance, 
+        version: s.version 
+      });
+      log(`SYNCED: ID ${s.id} updated, version → ${s.version}`);
+    } else if (result.ok && result.data.status === 'CONFLICT') {
+      const sv = result.data.serverStudent;
+      log(`CONFLICT: ID ${sv.id} — server version ${sv.version}, your baseVersion was ${baseVersion}`);
+    } else if (!result.ok) {
+      log('Server unreachable during update. Saving offline.');
+      await updateOffline(student, data, baseVersion);
+    }
+  } else {
+    await updateOffline(student, data, baseVersion);
+  }
+  clearForm();
+  await renderStudents();
+  await renderQueue();
+}
+
+async function updateOffline(student, data, baseVersion) {
+  const userId   = session ? session.user.id : 0;
+  const changeId = 'C' + Date.now();
+  Object.assign(student, data);
+  await idbPut('students', student);
+  await idbPut('syncQueue', { 
+    changeId, 
+    operation: 'UPDATE', 
+    studentId: editingId, 
+    data, 
+    baseVersion, 
+    userId, 
+    deviceId: DEVICE_ID, 
+    status: 'PENDING', 
+    createdAt: new Date().toISOString() 
+  });
+  log(`OFFLINE UPDATE: ID ${editingId} queued (baseVersion=${baseVersion})`);
+}
+
+async function syncPending() {
+  if (!effectivelyOnline()) { log('Cannot sync — OFFLINE'); return; }
+  if (isSyncing) { log('Sync already in progress…'); return; }
+
+  const items   = await idbGetAll('syncQueue');
+  const pending = items.filter(i => i.status === 'PENDING');
+  if (pending.length === 0) { log('No pending changes to sync'); return; }
+
+  isSyncing = true;
+  updateStatusUI();
+  log(`Starting automatic sync — ${pending.length} pending change(s)`);
+
+  let anyFailed = false;
+
+  for (const item of pending) {
+    if (item.operation === 'CREATE') {
+      const result = await safeFetch(`${API}/students`, {
+        method: 'POST',
+        body: JSON.stringify(item.data),
+      });
+      if (result.ok && result.data.status === 'CREATED') {
+        const s = result.data.student;
+        await idbDelete('students', item.tempId);
+        await idbPut('students', { 
+          id: s.id, 
+          name: s.name, 
+          roll_no: s.roll_no, 
+          course: s.course, 
+          attendance: s.attendance, 
+          version: s.version 
+        });
+        await idbDelete('syncQueue', item.changeId);
+        log(`CREATE synced: ID ${s.id} (${s.name})`);
+      } else {
+        log(`CREATE failed for ${item.data.name}: ${result.error || JSON.stringify(result.data)}`);
+        anyFailed = true;
+        if (!result.ok) break;
+      }
+
+    } else if (item.operation === 'UPDATE') {
+      const result = await safeFetch(`${API}/students/${item.studentId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ ...item.data, baseVersion: item.baseVersion }),
+      });
+      if (result.ok && result.data.status === 'SYNCED') {
+        const s = result.data.student;
+        await idbPut('students', { 
+          id: s.id, 
+          name: s.name, 
+          roll_no: s.roll_no, 
+          course: s.course, 
+          attendance: s.attendance, 
+          version: s.version 
+        });
+        await idbDelete('syncQueue', item.changeId);
+        log(`UPDATE synced: ID ${s.id}, version → ${s.version}`);
+      } else if (result.ok && result.data.status === 'CONFLICT') {
+        item.status = 'CONFLICT';
+        await idbPut('syncQueue', item);
+        log(`CONFLICT: ID ${result.data.serverStudent.id} — server version ${result.data.serverStudent.version}, baseVersion was ${item.baseVersion}`);
+      } else {
+        log(`UPDATE failed for ID ${item.studentId}: ${result.error || JSON.stringify(result.data)}`);
+        anyFailed = true;
+        if (!result.ok) break;
+      }
+    }
+  }
+
+  isSyncing = false;
+  updateStatusUI();
+  await renderStudents();
+  await renderQueue();
+  log(anyFailed ? 'Some changes failed — will retry when server is reachable' : 'Sync complete');
+}
+
+async function autoSync() {
+  const items = await idbGetAll('syncQueue');
+  if (items.some(i => i.status === 'PENDING')) await syncPending();
+}
+
+// ═══════════════════════════════════════════════
+// KEYBOARD HANDLERS & INIT
+// ═══════════════════════════════════════════════
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  if (document.getElementById('loginScreen').style.display !== 'none') {
+    doLogin();
+  } else if (document.getElementById('teacherRegisterScreen').style.display !== 'none') {
+    doRegisterTeacher();
+  } else if (document.getElementById('adminRegisterScreen').style.display !== 'none') {
+    doRegisterAdmin();
+  }
+});
+
+(async function init() {
+  if (restoreSession()) {
+    await showApp();
+  }
+})();
+</script>
+</body>
+</html>
