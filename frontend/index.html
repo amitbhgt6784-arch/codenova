@@ -463,7 +463,9 @@
 // ═══════════════════════════════════════════════
 // CONFIG & STATE
 // ═══════════════════════════════════════════════
-const API           = 'http://localhost:3000/api';
+// API base URL — switch the active line to toggle local vs deployed backend
+// const API = 'http://localhost:3000/api'; // ← local development
+const API           = 'https://codenova-bgk4.onrender.com/api'; // ← deployed (Render)
 const PING_INTERVAL = 10000;
 const DEVICE_ID     = 'WEB_' + (localStorage.getItem('p26_device') || (() => {
   const id = Math.random().toString(36).slice(2, 10).toUpperCase();
@@ -526,7 +528,8 @@ async function doLogin() {
     document.getElementById('lPass').value = '';
     showApp();
   } catch (err) {
-    errEl.textContent = 'Server unavailable. Please try again.';
+    console.error('Login request error:', err);
+    errEl.textContent = err.message ? `Connection error: ${err.message}` : 'Server unavailable. Please try again.';
   }
 }
 
@@ -611,8 +614,9 @@ async function doRegisterTeacher() {
     } else {
       errEl.textContent = data.error || 'Registration failed. Please try again.';
     }
-  } catch {
-    errEl.textContent = 'Server unavailable. Please try again.';
+  } catch (err) {
+    console.error('Teacher registration request error:', err);
+    errEl.textContent = err.message ? `Connection error: ${err.message}` : 'Server unavailable. Please try again.';
   }
 }
 
@@ -652,8 +656,9 @@ async function doRegisterAdmin() {
     } else {
       errEl.textContent = data.error || 'Admin registration failed.';
     }
-  } catch {
-    errEl.textContent = 'Server unavailable. Please try again.';
+  } catch (err) {
+    console.error('Admin registration request error:', err);
+    errEl.textContent = err.message ? `Connection error: ${err.message}` : 'Server unavailable. Please try again.';
   }
 }
 

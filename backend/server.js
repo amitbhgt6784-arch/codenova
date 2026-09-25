@@ -15,7 +15,26 @@ const JWT_SECRET      = process.env.JWT_SECRET || 'p26_sync_secret_change_in_pro
 const JWT_EXPIRES     = '12h';
 const ADMIN_SETUP_KEY = process.env.ADMIN_SETUP_KEY || 'P26-ADMIN-8X7K-2026';
 
-app.use(cors());
+// Allow requests from the deployed frontend (Vercel) and local development
+const ALLOWED_ORIGINS = [
+  'https://offline-2-seven.vercel.app',   // ← deployed Vercel frontend
+  'https://codenova-bgk4.onrender.com',   // ← Render backend self-calls / health checks
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'null' // file:// origin (opening index.html directly from disk)
+];
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (curl, Postman, server-to-server)
+    if (!origin) return callback(null, true);
+    // Allow the exact allowlist plus any Vercel preview deployment subdomain
+    if (ALLOWED_ORIGINS.includes(origin) || /^https:\/\/[^.]+\.vercel\.app$/.test(origin)) {
+      return callback(null, true);
+    }
+    callback(new Error('CORS: origin not allowed — ' + origin));
+  },
+  credentials: true
+}));
 app.use(bodyParser.json());
 
 // ═══════════════════════════════════════════════════════════
@@ -742,7 +761,7 @@ app.delete('/api/students/:id', requireAuth, requireAdmin, async (req, res) => {
 // ═══════════════════════════════════════════════════════════
 bootstrapDB()
   .then(() => {
-    app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
+    app.listen(PORT, '0.0.0.0', () => console.log(`Server listening on port ${PORT}`));
   })
   .catch(err => {
     console.error('Bootstrap failed:', err);
