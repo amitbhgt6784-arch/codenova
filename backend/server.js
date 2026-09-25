@@ -759,11 +759,19 @@ app.delete('/api/students/:id', requireAuth, requireAdmin, async (req, res) => {
 // ═══════════════════════════════════════════════════════════
 // START SERVER
 // ═══════════════════════════════════════════════════════════
-bootstrapDB()
-  .then(() => {
-    app.listen(PORT, '0.0.0.0', () => console.log(`Server listening on port ${PORT}`));
-  })
-  .catch(err => {
-    console.error('Bootstrap failed:', err);
-    process.exit(1);
-  });
+
+// Health-check route — Render pings this to confirm the process is alive.
+// Respond immediately regardless of DB state so the service is never killed
+// by a failed health check during a slow DB bootstrap.
+app.get('/healthz', (req, res) => res.json({ status: 'ok' }));
+
+// Start listening FIRST so Render's health check succeeds immediately.
+// bootstrapDB runs after the port is open — a slow or retrying DB connection
+// will not prevent the server from accepting HTTP requests.
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server listening on port ${PORT}`);
+  bootstrapDB()
+    .then(() => console.log('Database bootstrap complete'))
+    .catch(err => console.error('Bootstrap failed (server still running):', err.message));
+});
+
